@@ -1,65 +1,85 @@
-const { FavoritePlace } = require("../models");
+const { FavouritePlace } = require("../models");
 
-async function create(req, res) {
-  const { name, address, lat, lon, source, externalId, note } = req.body;
-  const userId = req.user.id;
+async function create(req, res, next) {
+  try {
+    const { name, address, lat, lon, source, externalId, note } = req.body;
+    const userId = req.user.id;
 
-  const favoritePlace = await FavoritePlace.create({
-    name,
-    address,
-    lat,
-    lon,
-    source,
-    externalId,
-    note,
-    UserId: userId,
-  });
+    const favouritePlace = await FavouritePlace.create({
+      name,
+      address,
+      lat,
+      lon,
+      source,
+      externalId,
+      note,
+      UserId: userId,
+    });
 
-  res.status(201).json(favoritePlace);
-}
-
-async function getAll(req, res) {
-  const favoritePlaces = await FavoritePlace.findAll({
-    where: { UserId: req.user.id },
-  });
-  res.json(favoritePlaces);
-}
-
-async function getOne(req, res) {
-  const favoritePlace = await FavoritePlace.findByPk(req.params.id);
-  if (!favoritePlace || favoritePlace.UserId !== req.user.id) {
-    return res
-      .status(404)
-      .json({ error: "Favorite Place not found or unauthorized" });
+    res.status(201).json(favouritePlace);
+  } catch (error) {
+    next(error);
   }
-  res.json(favoritePlace);
 }
 
-async function update(req, res) {
-  const { note } = req.body;
-  const favoritePlace = await FavoritePlace.findByPk(req.params.id);
-
-  if (!favoritePlace || favoritePlace.UserId !== req.user.id) {
-    return res
-      .status(404)
-      .json({ error: "Favorite Place not found or unauthorized" });
+async function getAll(req, res, next) {
+  try {
+    const favouritePlaces = await FavouritePlace.findAll({
+      where: { UserId: req.user.id },
+    });
+    res.json(favouritePlaces);
+  } catch (error) {
+    next(error);
   }
-
-  favoritePlace.note = note || favoritePlace.note;
-
-  await favoritePlace.save();
-  res.json(favoritePlace);
 }
 
-async function remove(req, res) {
-  const favoritePlace = await FavoritePlace.findByPk(req.params.id);
-  if (!favoritePlace || favoritePlace.UserId !== req.user.id) {
-    return res
-      .status(404)
-      .json({ error: "Favorite Place not found or unauthorized" });
+async function getOne(req, res, next) {
+  try {
+    const favouritePlace = await FavouritePlace.findByPk(req.params.id);
+    if (!favouritePlace || favouritePlace.UserId !== req.user.id) {
+      const error = new Error("Favourite Place not found or unauthorized");
+      error.name = "NotFound";
+      throw error;
+    }
+    res.json(favouritePlace);
+  } catch (error) {
+    next(error);
   }
-  await favoritePlace.destroy();
-  res.status(204).end();
+}
+
+async function update(req, res, next) {
+  try {
+    const { note } = req.body;
+    const favouritePlace = await FavouritePlace.findByPk(req.params.id);
+
+    if (!favouritePlace || favouritePlace.UserId !== req.user.id) {
+      const error = new Error("Favourite Place not found or unauthorized");
+      error.name = "NotFound";
+      throw error;
+    }
+
+    favouritePlace.note = note || favouritePlace.note;
+
+    await favouritePlace.save();
+    res.json(favouritePlace);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function remove(req, res, next) {
+  try {
+    const favouritePlace = await FavouritePlace.findByPk(req.params.id);
+    if (!favouritePlace || favouritePlace.UserId !== req.user.id) {
+      const error = new Error("Favourite Place not found or unauthorized");
+      error.name = "NotFound";
+      throw error;
+    }
+    await favouritePlace.destroy();
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
 }
 
 module.exports = { create, getAll, getOne, update, remove };
