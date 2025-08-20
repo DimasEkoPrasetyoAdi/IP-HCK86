@@ -5,11 +5,14 @@ const authentication =require ('./middlewares/authentication')
 const authorization = require ('./middlewares/authorization')
 const FavoriteController = require('./controllers/FavouriteController')
 const AuthController = require('./controllers/AuthController')
+const errorHandler = require('./middlewares/errorHandler')
 const {Trip, FavoritePlace} = require ('./models/')
 
 
 app.use(express.urlencoded({extended: true}))
 app.use(express.json())
+
+
 
 app.post('/api/auth/register', AuthController.register)
 app.post('/api/auth/login', AuthController.login)
@@ -37,6 +40,7 @@ app.put('/api/favorites/:id', authentication.auth(), authorization.authorization
 // Endpoint untuk menghapus tempat favorit berdasarkan ID
 app.delete('/api/favorites/:id', authentication.auth(), authorization.authorization(FavoritePlace), FavoriteController.remove);
 
-
+// Error Handler Middleware (harus di akhir)
+app.use(errorHandler);
 
 module.exports = app
