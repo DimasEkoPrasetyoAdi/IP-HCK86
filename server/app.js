@@ -11,15 +11,10 @@ const {Trip, FavouritePlace} = require ('./models/')
 
 app.use(express.urlencoded({extended: true}))
 app.use(express.json())
+app.use(cors())
 
-// Debug: Log all routes
-console.log('Registering routes...');
 
-app.post('/api/auth/register', (req, res, next) => {
-  console.log('POST /api/auth/register hit');
-  AuthController.register(req, res, next);
-});
-
+app.post('/api/auth/register', AuthController.register);
 app.post('/api/auth/login', AuthController.login)
 
 app.get('/api/auth/me', authentication.auth(), AuthController.me)
