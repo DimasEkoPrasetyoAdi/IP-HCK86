@@ -12,7 +12,6 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       User.hasMany(models.Trip, {foreignKey: 'UserId'})
-      User.hasMany(models.FavouritePlace, {foreignKey: 'UserId'})
     }
   }
   User.init({

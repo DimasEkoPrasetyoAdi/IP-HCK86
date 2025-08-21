@@ -32,6 +32,10 @@ function errorHandler(error, req, res, next) {
       status = 404;
       message = error.message;
       break;
+    case "ConfigError":
+      status = 500;
+      message = error.message;
+      break;
     
     case "JsonWebTokenError":
       status = 401;

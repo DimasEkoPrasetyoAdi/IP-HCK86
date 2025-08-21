@@ -1,6 +1,12 @@
 const { comparePassword } = require("../helpers/bcrypt");
 const { signToken } = require("../helpers/jwt");
 const { User } = require('../models/');
+const { OAuth2Client } = require('google-auth-library');
+require('dotenv').config();
+const WEB_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const client = new OAuth2Client(WEB_CLIENT_ID);
+
+
 
 async function register(req, res, next) {
   try {
@@ -54,6 +60,41 @@ async function login(req, res, next) {
   }
 }
 
+async function googleLogin (req, res, next){
+  try {
+    // Allow id_token via body (preferred) or headers fallback
+    const idToken = req.body.id_token || req.headers['id_token'];
+    if(!idToken){
+      throw { name: 'BadRequest', message: 'id_token is required'};
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: WEB_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, sub: userid } = payload; // 'name' full name from Google
+
+    let user = await User.findOne({ where: { email } });
+    if (!user) {
+      // Create user with a random placeholder password (will be hashed by hook)
+      const placeholderPassword = userid + WEB_CLIENT_ID.slice(0,6);
+      user = await User.create({
+        fullname: name || email.split('@')[0],
+        email,
+        password: placeholderPassword,
+      });
+    }
+
+    const access_token = signToken({ id: user.id });
+    res.status(200).json({ access_token });
+  } catch (error) {
+    console.error('Google login error', error);
+    next(error);
+  }
+}
+
 async function me(req, res, next) {
   try {
     const user = await User.findByPk(req.user.id);
@@ -63,4 +104,4 @@ async function me(req, res, next) {
   }
 }
 
-module.exports = { register, login, me };
+module.exports = { register, login, me, googleLogin};

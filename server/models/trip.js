@@ -21,12 +21,13 @@ module.exports = (sequelize, DataTypes) => {
     regencyId: DataTypes.INTEGER,
     lat: DataTypes.FLOAT,
     lon: DataTypes.FLOAT,
-    days: DataTypes.INTEGER,
     interest: DataTypes.JSONB,
     weather: DataTypes.JSONB,
     itinerary: DataTypes.JSONB,
     note_markdown: DataTypes.TEXT,
     note_html: DataTypes.TEXT,
+  startDate: DataTypes.DATEONLY,
+  endDate: DataTypes.DATEONLY,
     isPublic: DataTypes.BOOLEAN,
     shareSlug: DataTypes.STRING
   }, {
