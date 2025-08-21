@@ -1,0 +1,21 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "trip_id",
+    "host": "127.0.0.1",
+    "dialect": "postgres"
+  },
+  "test": {
+  "storage": ":memory:",
+  "dialect": "sqlite",
+  "logging": false
+  },
+  "production": {
+    "username": "root",
+    "password": null,
+    "database": "database_production",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  }
+}
