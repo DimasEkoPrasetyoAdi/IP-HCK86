@@ -1,27 +1,31 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import GoogleLoginButton from '../components/GoogleLoginButton';
-import { useAuth } from '../context/AuthContext';
+import { useDispatch, useSelector } from 'react-redux';
+import { loginThunk } from '../store/slices/authSlice';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const loading = useSelector((s)=>s.auth.loading);
   
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
     try {
-  await login({ email, password });
-  navigate('/trips');
+      const res = await dispatch(loginThunk({ email, password }));
+      if (res.meta.requestStatus === 'rejected') {
+        setError(res.payload || 'Login gagal, coba lagi!');
+      } else {
+        navigate('/trips');
+      }
     } catch (err) {
-  setError(err.response?.data?.error || 'Login gagal, coba lagi!');
-    } finally { setLoading(false); }
+      setError('Login gagal, coba lagi!');
+    }
   };
 
   const bgImage = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80';

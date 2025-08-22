@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const http = axios.create({
-  baseURL: "http://localhost:3000/api",
+  baseURL: "https://hacktivfoods.dimz.biz.id/api",
 });
 
 // Attach token automatically
@@ -17,9 +17,15 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response && err.response.status === 401) {
+    const status = err?.response?.status;
+    const data = err?.response?.data || {};
+    const message = data.message || data.error || err.message || "Terjadi kesalahan";
+
+
+    if (status === 401) {
       console.warn('Unauthorized (401) - token mungkin invalid atau expired');
     }
+
     return Promise.reject(err);
   }
 );

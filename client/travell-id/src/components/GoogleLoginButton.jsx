@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import http from '../lib/http';
 import { useNavigate } from 'react-router';
+import { useDispatch } from 'react-redux';
+import { googleLoginThunk } from '../store/slices/authSlice';
 
 export default function GoogleLoginButton({ onSuccess }) {
   const divRef = useRef(null);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
   // Ambil dari .env (WAJIB). Hindari fallback agar tidak menimbulkan origin mismatch dari client ID lain.
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -19,8 +22,10 @@ export default function GoogleLoginButton({ onSuccess }) {
             try {
               setLoading(true);
               const { credential: id_token } = credentialResponse;
-              const { data } = await http.post('/google-login', { id_token });
-              localStorage.setItem('access_token', data.access_token);
+              const res = await dispatch(googleLoginThunk(id_token));
+              if (res.meta.requestStatus === 'rejected') {
+                throw new Error(res.payload || 'Google login gagal');
+              }
               if(onSuccess) onSuccess();
               navigate('/trips');
             } catch (err) {

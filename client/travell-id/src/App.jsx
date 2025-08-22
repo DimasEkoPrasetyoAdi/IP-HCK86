@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes, Outlet, Navigate } from "react-router";
+import { useSelector } from 'react-redux';
 
 import HomePublic from './pages/HomePublic';
 import LoginPage from "./pages/LoginPage";
@@ -11,15 +12,19 @@ import PublicTrip from "./pages/PublicTrip";
 
 // Protected route wrapper
 function ProtectedRoute() {
+  const { isAuthenticated, bootstrapDone } = useSelector((s)=>s.auth);
   const token = localStorage.getItem('access_token');
-  if (!token) return <Navigate to="/login" replace />;
+  if (!bootstrapDone) return null; // or a spinner component
+  if (!isAuthenticated && !token) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 
 // Guest-only route wrapper (redirect logged-in users away from auth pages)
 function GuestRoute() {
+  const { isAuthenticated, bootstrapDone } = useSelector((s)=>s.auth);
   const token = localStorage.getItem('access_token');
-  if (token) return <Navigate to="/trips" replace />;
+  if (!bootstrapDone) return null;
+  if (isAuthenticated || token) return <Navigate to="/trips" replace />;
   return <Outlet />;
 }
 

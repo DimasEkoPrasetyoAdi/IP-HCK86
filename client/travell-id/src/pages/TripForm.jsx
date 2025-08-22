@@ -4,6 +4,10 @@ import http from "../lib/http";
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import TripPDF from '../components/TripPDF';
 import Navbar from "../components/Navbar";
+import axios from 'axios'
+import { clientGeocode, staticCityCoords } from '../lib/geocode';
+import { clientWeather } from '../lib/weather';
+
 
 export default function TripForm() {
   const { id } = useParams();
@@ -46,6 +50,7 @@ export default function TripForm() {
     note_markdown: "",
   });
 
+  // Autocomplete state
   const [citySuggestions, setCitySuggestions] = useState([]);
   const debounceRef = useRef(null);
 
@@ -58,19 +63,49 @@ export default function TripForm() {
           const res = await http.get(`/trips/${id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
+          // base data from server
+          let serverTrip = res.data;
+
+          // set form state from server
           setForm((prev) => ({
             ...prev,
-            title: res.data.title || "",
-            city: res.data.city || "",
-            cityName: res.data.city || "",
-            startDate: res.data.startDate || "",
-            endDate: res.data.endDate || "",
-            interests: res.data.interest || res.data.interests || [],
-            lat: res.data.lat || "",
-            lon: res.data.lon || "",
-            note_markdown: res.data.note_markdown || res.data.notes_markdown || "",
+            title: serverTrip.title || "",
+            city: serverTrip.city || "",
+            cityName: serverTrip.city || "",
+            startDate: serverTrip.startDate || "",
+            endDate: serverTrip.endDate || "",
+            interests: serverTrip.interest || serverTrip.interests || [],
+            lat: serverTrip.lat || "",
+            lon: serverTrip.lon || "",
+            note_markdown: serverTrip.note_markdown || serverTrip.notes_markdown || "",
           }));
-          setTripResult(res.data); // when editing show existing itinerary
+          // Enrich weather on client if backend returned fallback/unavailable
+          try {
+            const needsEnrich = !serverTrip.weather || serverTrip.weather.error || (serverTrip.weather.dailySummary && serverTrip.weather.dailySummary.every(d => d.temp_max == null));
+
+            // Ensure we have coordinates: if missing, try client geocoding based on city
+            let lat = serverTrip.lat;
+            let lon = serverTrip.lon;
+            if ((!lat || !lon) && serverTrip.city) {
+              try {
+                const cgList = await clientGeocode(serverTrip.city);
+                const cg = (cgList && cgList[0]) || staticCityCoords[serverTrip.city.toLowerCase()];
+                if (cg) {
+                  lat = cg.lat; lon = cg.lon;
+                  // reflect on form state so user can save it later
+                  setForm(prev => ({ ...prev, lat, lon }));
+                }
+              } catch (_) { /* ignore geocode errors */ }
+            }
+
+            if (needsEnrich && lat && lon && serverTrip.startDate && serverTrip.endDate) {
+              const cw = await clientWeather(lat, lon, serverTrip.startDate, serverTrip.endDate);
+              if (cw && cw.dailySummary) {
+                serverTrip = { ...serverTrip, lat, lon, weather: { ...(serverTrip.weather || {}), dailySummary: cw.dailySummary, source: 'client_edit' } };
+              }
+            }
+          } catch { /* non-fatal */ }
+          setTripResult(serverTrip); // when editing show itinerary + enriched weather if available
         } catch (err) {
           console.error("Fetch trip failed:", err);
         }
@@ -106,41 +141,33 @@ export default function TripForm() {
     }
   };
 
-  // City autocomplete via backend geo endpoint
+  // City autocomplete via backend -> client fallback -> static
   const handleCityChange = (e) => {
     const value = e.target.value;
-    setForm((prev) => ({ ...prev, cityName: value, city: value }));
-
+    setForm(prev=>({...prev, cityName:value, city:value}));
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (value.length < 2) {
-      setCitySuggestions([]);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
+    if (value.length < 2){ setCitySuggestions([]); return; }
+    debounceRef.current = setTimeout(async ()=>{
       try {
-        const token = localStorage.getItem("access_token");
-        // Use internal API for a single best match
-        const res = await http.get(`/geo/search?q=${encodeURIComponent(value)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        // Wrap single result as suggestion list for consistent UI
-        setCitySuggestions(res.data ? [res.data] : []);
-      } catch (err) {
-        console.error("City autocomplete error:", err);
-      }
+        const token = localStorage.getItem('access_token');
+        let suggestions = [];
+        try {
+          const res = await http.get(`/geo/search?q=${encodeURIComponent(value)}`, { headers: { Authorization: `Bearer ${token}` }});
+          if (res.data) suggestions = [res.data];
+        } catch(_e){
+          suggestions = await clientGeocode(value);
+        }
+        if (!suggestions.length){
+          const key = value.toLowerCase();
+          if (staticCityCoords[key]) suggestions = [staticCityCoords[key]];
+        }
+        setCitySuggestions(suggestions);
+      } catch(err){ console.error('City autocomplete error:', err); }
     }, 400);
   };
 
   const selectCity = (c) => {
-    setForm((prev) => ({
-      ...prev,
-      city: c.city,
-      cityName: c.city,
-      lat: c.lat,
-      lon: c.lon,
-    }));
+    setForm(prev=>({...prev, city:c.city, cityName:c.city, lat:c.lat, lon:c.lon }));
     setCitySuggestions([]);
   };
 
@@ -148,58 +175,56 @@ export default function TripForm() {
     e.preventDefault();
     setLoading(true);
     setShowProgress(true);
-    setTripResult(null); // reset previous result
+    setTripResult(null);
     setErrorMsg("");
     try {
-      const token = localStorage.getItem("access_token");
       finalizeInterests();
       const effectiveInterests = interestTemp.trim() ? [...form.interests, interestTemp.trim()] : form.interests;
-      if (!effectiveInterests.length) {
-        setErrorMsg('Tambahkan minimal satu interest (tekan Enter).');
+      if (!effectiveInterests.length) { setErrorMsg('Tambahkan minimal satu interest (tekan Enter).'); setLoading(false); setShowProgress(false); return; }
+      if (!form.startDate || !form.endDate) { setErrorMsg('Isi start date dan end date'); setLoading(false); setShowProgress(false); return; }
+      if (new Date(form.endDate) < new Date(form.startDate)) { setErrorMsg('End date harus >= start date'); setLoading(false); setShowProgress(false); return; }
+
+      let lat = form.lat; let lon = form.lon; let cityName = form.cityName || form.city;
+      if ((!lat || !lon) && cityName) {
+        const cg = (await clientGeocode(cityName))[0] || staticCityCoords[cityName.toLowerCase()];
+        if (cg) { lat = cg.lat; lon = cg.lon; }
+      }
+      if (!lat || !lon) {
+        setErrorMsg('Koordinat tidak ditemukan. Coba pilih kota dari saran atau periksa koneksi.');
         setLoading(false); setShowProgress(false); return;
       }
-      // basic validation date range
-      if (!form.startDate || !form.endDate) {
-        setErrorMsg('Isi start date dan end date');
-        setLoading(false); setShowProgress(false); return;
-      }
-      if (new Date(form.endDate) < new Date(form.startDate)) {
-        setErrorMsg('End date harus >= start date');
-        setLoading(false); setShowProgress(false); return;
-      }
+
       const payload = {
         title: form.title,
-        cityName: form.cityName || form.city,
+        cityName: cityName,
         startDate: form.startDate,
         endDate: form.endDate,
         interests: effectiveInterests,
-        lat: form.lat || undefined,
-        lon: form.lon || undefined,
+        lat, lon,
         notes_markdown: form.note_markdown,
       };
-      if (id) {
-        payload.city = form.cityName || form.city; // send explicit city for change detection
+      if (id) payload.city = cityName;
+
+      const token = localStorage.getItem('access_token');
+      const res = id
+        ? await http.put(`/trips/${id}`, payload, { headers: { Authorization: `Bearer ${token}` } })
+        : await http.post(`/trips`, payload, { headers: { Authorization: `Bearer ${token}` } });
+
+      // If backend weather missing or fallback, fetch client weather to enrich
+      let tripData = res.data;
+      if (!tripData.weather || tripData.weather.error) {
+        const w = await clientWeather(lat, lon, form.startDate, form.endDate);
+        if (w && w.dailySummary) {
+          tripData = { ...tripData, weather: { ...(tripData.weather||{}), dailySummary: w.dailySummary, source: (tripData.weather?.error ? 'client_fallback' : 'client') } };
+        }
       }
 
-      let res;
-      if (id) {
-        res = await http.put(`/trips/${id}`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } else {
-        res = await http.post(`/trips`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-
-      setTripResult(res.data); // store result including itinerary
+      setTripResult(tripData);
       setProgressIdx(progressSteps.length - 1);
-      setTimeout(() => {
-        setShowProgress(false); // hide overlay after short pause
-      }, 600);
+      setTimeout(() => setShowProgress(false), 600);
     } catch (err) {
-      console.error("Save trip failed:", err);
-      setErrorMsg(err.response?.data?.error || 'Gagal membuat trip');
+      console.error('Save trip failed:', err);
+      setErrorMsg(err.response?.data?.message || err.response?.data?.error || 'Gagal membuat trip');
       setShowProgress(false);
     } finally {
       setLoading(false);

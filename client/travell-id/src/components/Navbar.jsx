@@ -1,7 +1,10 @@
 import { useNavigate, useLocation } from "react-router";
+import { useDispatch } from 'react-redux';
+import { logout } from '../store/slices/authSlice';
 
 export default function Navbar(){
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const loc = useLocation();
   const link = (path,label)=>{
     const active = loc.pathname.startsWith(path);
@@ -20,9 +23,8 @@ export default function Navbar(){
       <div className="flex items-center gap-2 md:gap-3">
         {link('/trips','Trips')}
         {link('/favourites','Favourites')}
-        {link('/','Home')}
         <button
-          onClick={()=>{ localStorage.removeItem('access_token'); navigate('/'); }}
+          onClick={()=>{ dispatch(logout()); navigate('/'); }}
           className="relative px-6 py-2 rounded-full font-semibold text-[#06253d] bg-gradient-to-r from-cyan-300 via-teal-200 to-blue-200 hover:from-cyan-200 hover:to-blue-100 shadow-md shadow-cyan-900/30 ring-1 ring-white/30 text-sm tracking-wide focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
         >Logout</button>
       </div>

@@ -1,23 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import http from '../lib/http';
 import Navbar from '../components/Navbar';
 import { useNavigate } from 'react-router';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchFavourites } from '../store/slices/favouritesSlice';
 
 export default function FavouriteTrips(){
-  const [items,setItems] = useState([]);
-  const [loading,setLoading]=useState(true);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { list: items, loading } = useSelector((s)=>s.favourites);
   useEffect(()=>{
-    (async()=>{
-      try{
-        const token = localStorage.getItem('access_token');
-        if(!token) return navigate('/login');
-        const res = await http.get('/favourite-trips',{ headers:{ Authorization:`Bearer ${token}` }});
-        setItems(res.data);
-      }catch(e){ console.error(e); }
-      finally{ setLoading(false); }
-    })();
-  },[navigate]);
+    const token = localStorage.getItem('access_token');
+    if(!token) return navigate('/login');
+    dispatch(fetchFavourites());
+  },[dispatch, navigate]);
   const bgImage = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80';
   if(loading) return <div className="relative min-h-screen text-white flex items-center justify-center">Loading...</div>;
   return (
@@ -44,7 +40,7 @@ export default function FavouriteTrips(){
                 <p className="text-[10px] text-cyan-100/40">{f.Trip?.startDate} → {f.Trip?.endDate}</p>
                 <div className="mt-4 flex gap-2 flex-wrap">
                   <button onClick={()=>navigate(`/trips/${f.Trip?.id}`)} className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-[11px] font-medium tracking-wide">View</button>
-                  <button onClick={async()=>{await http.delete(`/favourite-trips/${f.id}`,{ headers:{ Authorization:`Bearer ${localStorage.getItem('access_token')}`}}); setItems(items.filter(x=>x.id!==f.id));}} className="px-3 py-1.5 rounded-full bg-red-500/80 hover:bg-red-500 text-[11px] font-medium tracking-wide">Remove</button>
+                  <button onClick={async()=>{await http.delete(`/favourite-trips/${f.id}`,{ headers:{ Authorization:`Bearer ${localStorage.getItem('access_token')}`}}); /* could dispatch refetch or local remove if we track */ dispatch(fetchFavourites()); }} className="px-3 py-1.5 rounded-full bg-red-500/80 hover:bg-red-500 text-[11px] font-medium tracking-wide">Remove</button>
                 </div>
                 {f.note && <p className="text-[11px] mt-4 bg-white/10 border border-white/10 rounded-lg p-3 text-cyan-100/80 leading-relaxed flex-1">{f.note}</p>}
               </div>
