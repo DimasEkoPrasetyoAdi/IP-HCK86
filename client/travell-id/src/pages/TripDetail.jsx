@@ -4,6 +4,7 @@ import http from '../lib/http';
 import Navbar from '../components/Navbar';
 import TripPDF from '../components/TripPDF';
 import { PDFDownloadLink } from '@react-pdf/renderer';
+import { clientWeather } from '../lib/weather';
 
 export default function TripDetail() {
   const { id } = useParams();
@@ -20,13 +21,21 @@ export default function TripDetail() {
         const token = localStorage.getItem('access_token');
         if (!token) return navigate('/login');
         const res = await http.get(`/trips/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-        setTrip(res.data);
-        // check if in favourites
+        let tripData = res.data;
+        // If backend weather missing or fallback placeholder, enrich on client
+        if (!tripData.weather || tripData.weather.error || (tripData.weather.dailySummary && tripData.weather.dailySummary.every(d=>d.temp_max==null))) {
+          const w = await clientWeather(tripData.lat, tripData.lon, tripData.startDate, tripData.endDate);
+          if (w && w.dailySummary) {
+            tripData = { ...tripData, weather: { ...(tripData.weather||{}), dailySummary: w.dailySummary, source: 'client_detail' } };
+          }
+        }
+        setTrip(tripData);
+        // check favourites
         try {
           const favs = await http.get('/favourite-trips', { headers:{ Authorization:`Bearer ${token}` }});
-          const match = favs.data.find(f=>f.TripId === res.data.id);
+          const match = favs.data.find(f=>f.TripId === tripData.id);
           if(match) setIsFav(true);
-        } catch(_){}
+        } catch(_){ }
       } catch (e) {
         setError('Failed to load trip');
       } finally {
@@ -127,9 +136,22 @@ export default function TripDetail() {
         {trip.weather && (
           <div className="rounded-xl border border-white/15 bg-white/10 backdrop-blur-xl p-6 shadow-lg shadow-cyan-900/30 overflow-hidden">
             <h3 className="text-base font-semibold mb-4 tracking-wide text-cyan-100/80">Weather Snapshot</h3>
-            <div className="relative max-h-60 overflow-auto text-[11px] leading-relaxed">
-              <pre>{JSON.stringify(trip.weather.daily || trip.weather, null, 2)}</pre>
-            </div>
+            {trip.weather.dailySummary ? (
+              <div className="grid md:grid-cols-3 gap-3 text-[11px]">
+                {trip.weather.dailySummary.map((d,i)=>(
+                  <div key={i} className="p-3 rounded border border-white/10 bg-white/5">
+                    <p className="font-semibold text-cyan-100/90 mb-1">{d.date}</p>
+                    <p className="text-cyan-100/70">{d.condition}</p>
+                    <p className="text-cyan-100/50">{d.temp_min ?? '-'}°C - {d.temp_max ?? '-'}°C</p>
+                    <p className="text-cyan-100/40">Rain: {d.precipitation_mm ?? '-'} mm</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="relative max-h-60 overflow-auto text-[11px] leading-relaxed">
+                <pre>{JSON.stringify(trip.weather.daily || trip.weather, null, 2)}</pre>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,33 +1,22 @@
 // src/pages/UserPage.jsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import http from "../lib/http";
 import Navbar from "../components/Navbar";
-import { getCityImage } from "../lib/cityImages";
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchTrips, removeById } from '../store/slices/tripsSlice';
+// Removed automatic city images (not relevant). Using neutral gradient block instead.
 
 export default function UserPage() {
-  const [trips, setTrips] = useState([]);
   const navigate = useNavigate();
-
-  // util getCityImage dipakai untuk penentuan gambar; tidak mengubah logic trip
+  const dispatch = useDispatch();
+  const { list: trips, loading } = useSelector((s) => s.trips);
 
   useEffect(() => {
-    const fetchTrips = async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        if (!token) return navigate("/login");
-
-        const response = await http.get("/trips", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setTrips(response.data);
-      } catch (err) {
-        console.error(err);
-        navigate("/login");
-      }
-    };
-    fetchTrips();
-  }, [navigate]);
+    const token = localStorage.getItem('access_token');
+    if (!token) return navigate('/login');
+    dispatch(fetchTrips());
+  }, [dispatch, navigate]);
 
   const bgImage = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80';
 
@@ -58,24 +47,20 @@ export default function UserPage() {
 
       {/* Main content */}
       <main className="relative max-w-7xl mx-auto px-6 pb-32">
-        {trips.length === 0 && (
+  {trips.length === 0 && !loading && (
           <div className="text-center text-cyan-100/70 text-sm">Belum ada trip. Mulai buat perjalanan pertamamu.</div>
         )}
         <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {trips.map(trip => {
-            const img = getCityImage(trip.city);
-            return (
+          {trips.map(trip => (
             <div key={trip.id} className="relative group rounded-xl overflow-hidden bg-white/10 backdrop-blur-xl border border-white/15 shadow-lg shadow-cyan-900/20 hover:shadow-cyan-800/40 transition">
               <div className="absolute -inset-px rounded-xl opacity-0 group-hover:opacity-100 bg-gradient-to-br from-cyan-300/10 via-transparent to-blue-200/10 pointer-events-none" />
-              <div className="h-40 w-full relative overflow-hidden">
-                <img src={img} alt={trip.city} className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#061a2d]/80 via-[#061a2d]/40 to-transparent" />
-                <button onClick={()=>navigate(`/trips/${trip.id}`)} className="absolute bottom-3 left-4 right-4 text-left">
+              <div className="h-40 w-full relative flex items-end justify-start bg-gradient-to-br from-cyan-500/30 via-teal-400/20 to-blue-500/20">
+                <button onClick={()=>navigate(`/trips/${trip.id}`)} className="m-4 text-left">
                   <h4 className="text-base font-bold tracking-wide text-white drop-shadow group-hover:text-cyan-200 transition-colors">{trip.title}</h4>
+                  <p className="text-[11px] text-cyan-100/70 font-medium">{trip.city}</p>
                 </button>
               </div>
               <div className="p-5 pt-4">
-                <p className="text-cyan-100/70 text-xs mb-1">{trip.city}</p>
                 <p className="text-[10px] text-cyan-100/40 mb-3">Created: {new Date(trip.createdAt).toLocaleDateString()}</p>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -89,14 +74,18 @@ export default function UserPage() {
                   <button
                     className="px-3 py-1.5 rounded-full bg-red-500/80 hover:bg-red-500 text-[11px] font-medium tracking-wide"
                     onClick={async()=>{
-                      await http.delete(`/trips/${trip.id}`, { headers:{ Authorization:`Bearer ${localStorage.getItem('access_token')}` }});
-                      setTrips(trips.filter(t=>t.id!==trip.id));
+                      try {
+                        await http.delete(`/trips/${trip.id}`);
+                        dispatch(removeById(trip.id));
+                      } catch (e) {
+                        // error alert handled globally by interceptor
+                      }
                     }}
                   >Delete</button>
                 </div>
               </div>
             </div>
-          );})}
+          ))}
         </div>
       </main>
     </div>
